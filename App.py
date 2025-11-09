@@ -82,14 +82,15 @@ tab1, tab2, tab3 = containerBody.tabs(["Grafico1", "Grafico2", "Grafico3"])
 with tab1:
     st.write("teste1")
 
-with tab2:    
-    res = run_query("""
+with tab2:
+    res = pd.DataFrame({"nome_restaurante": ["Todos"], "id": [0]})
+    res = pd.concat([res, run_query("""
         select
             concat(nome_fantasia, ' (', razao_social, ')') as nome_restaurante
             , id
         from restaurante
-    """)
-    option = st.selectbox("Selecione um restaurante", res['nome_restaurante'], index=None)
+    """)])
+    option = st.selectbox("Selecione um restaurante", res['nome_restaurante'], index=0)
     restaurante_id = 0 if option is None else res.loc[res['nome_restaurante'] == option]['id'].values[0]
     
     vendas = run_query(f"""
@@ -100,16 +101,14 @@ with tab2:
             pedido pe, produto pr, item_compra ic, cupom c
         where
             pe.id = ic.id_pedido and ic.id_produto = pr.id and pe.cupom_aplicado = c.id
-            and pr.id_restaurante = {restaurante_id}
+            {f"and pr.id_restaurante = {restaurante_id}" if restaurante_id > 0 else ""}
         group by dia
         order by dia
     """)
     # print(restaurante_id)
     
-    if restaurante_id == 0:
-       st.write("Selecione um restaurante para visualizar os dados.") 
-    elif len(vendas) > 0:
-        st.bar_chart(vendas, x='dia', y='vendas', x_label="Dia", y_label="Vendas")
+    if len(vendas) > 0:
+        st.bar_chart(vendas, x='dia', y='vendas', x_label="Dia", y_label="Vendas", color='#FFCC80')
         st.write(vendas)
     else:
         st.write("Nenhum dado encontrado.")
