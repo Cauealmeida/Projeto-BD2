@@ -1,5 +1,6 @@
 import streamlit as st
-import psycopg2
+import pandas as pd
+import psycopg2.pool
 import os
 from dotenv import load_dotenv
 
@@ -18,15 +19,20 @@ print("DB_PASSWORD:", os.getenv("DB_PASSWORD"))
 print("DB_PORT:", os.getenv("DB_PORT"))
 
 @st.cache_resource
+def get_connection_pool():
+    connection_pool = psycopg2.pool.SimpleConnectionPool(
+        1, 10,
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        port=os.getenv('DB_PORT')
+    )
+    return connection_pool
+
 def init_connection():
     try:
-        conn = psycopg2.connect(
-            host=os.getenv('DB_HOST'),
-            database=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            port=os.getenv('DB_PORT')
-        )
+        conn = connection_pool.getconn()
         print("✅ Conexão bem-sucedida com:", os.getenv('DB_HOST'))
         return conn
     except Exception as e:
@@ -34,4 +40,24 @@ def init_connection():
         print("❌ Erro detalhado:", e)
         return None
 
-conn = init_connection()
+def close_connection(conn):
+    try:
+        connection_pool.putconn(conn)
+        print("✅ Conexão retornada ao pool")
+    except Exception as e:
+        st.error(f"Erro ao retornar conexão ao pool: {e}")
+
+#função para executar querys;
+@st.cache_data(ttl=3600)
+def run_query(query, params = None):
+    conn = init_connection()
+    try:
+        df = pd.read_sql(query, conn, params=params)
+        return df
+    except Exception as e:
+        st.error(f"Erro na query: {e}")
+        return pd.DataFrame()
+    finally:
+        close_connection(conn=conn)
+        
+connection_pool = get_connection_pool()
