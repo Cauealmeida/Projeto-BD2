@@ -2,7 +2,7 @@ import base64
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from modules.Conexao import conn
+from modules.Conexao import run_query
 
 #configuração inicial do site
 st.set_page_config(
@@ -10,17 +10,6 @@ st.set_page_config(
     page_icon="assets/Logo.png",
     layout="wide"
 )
-
-
-#função para executar querys;
-@st.cache_data(ttl=3600)
-def run_query(query, params = None):
-    try:
-        df = pd.read_sql (query, conn, params= params)
-        return df
-    except Exception as e:
-        st.error(f"Erro na query: {e}")
-        return pd.DataFrame()
 
 
 #Convertendo para base64 para o streamlit reconhecer.
@@ -224,7 +213,35 @@ with tab1:
 
 
 with tab2:
-    st.write("teste2")
+    res = pd.DataFrame({"nome_restaurante": ["Todos"], "id": [0]})
+    res = pd.concat([res, run_query("""
+        select
+            concat(nome_fantasia, ' (', razao_social, ')') as nome_restaurante
+            , id
+        from restaurante
+    """)])
+    option = st.selectbox("Selecione um restaurante", res['nome_restaurante'], index=0)
+    restaurante_id = 0 if option is None else res.loc[res['nome_restaurante'] == option]['id'].values[0]
+    
+    vendas = run_query(f"""
+        select
+            cast(pe.data as date) as dia
+            , sum(ic.qtde * pr.preco - (ic.qtde * pr.preco * (c.porcentagem_desconto / 100))) as vendas
+        from
+            pedido pe, produto pr, item_compra ic, cupom c
+        where
+            pe.id = ic.id_pedido and ic.id_produto = pr.id and pe.cupom_aplicado = c.id
+            {f"and pr.id_restaurante = {restaurante_id}" if restaurante_id > 0 else ""}
+        group by dia
+        order by dia
+    """)
+    # print(restaurante_id)
+    
+    if len(vendas) > 0:
+        st.bar_chart(vendas, x='dia', y='vendas', x_label="Dia", y_label="Vendas", color='#FFCC80')
+        st.write(vendas)
+    else:
+        st.write("Nenhum dado encontrado.")
 
 with tab3:
     st.write("teste3")
