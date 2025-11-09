@@ -78,7 +78,7 @@ containerHeader.markdown(f"""
         <h4 class="header-text">Painel de Gerenciamento de Informações do Estabelecimento</h4>
     </div>
     <a href="#" class="ancora">
-        Padaria Pão de Sucesso 11.656.490/0001-04
+        Carlos - Diretor
         <img src="data:image/png;base64,{image_usuario}">
     </a>
 </div>
@@ -87,11 +87,141 @@ containerHeader.markdown(f"""
 #criando o body.
 containerBody = st.container(border=True)
 
+#estilo da aba
+st.markdown("""
+<style>
+.stTabs [role="tab"] {
+    color: #ff9800;  /* cor do texto das abas inativas */
+    background-color: #1e1e1e;  /* fundo padrão */
+    border-radius: 10px 10px 0 0;
+    padding: 8px 16px;
+    font-weight: 500;
+}
+
+.stTabs [role="tab"][aria-selected="true"] {
+    color: white !important;          /* fonte branca */
+    background-color: #ff9800 !important; /* fundo laranja */
+    font-weight: bold;
+}
+
+.stTabs [role="tab"]:hover {
+    background-color: #ffb74d;
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
+
 #criando as abas que contem os relatórios.
 tab1, tab2, tab3 = containerBody.tabs(["Grafico1", "Grafico2", "Grafico3"])
 
 with tab1:
-    st.write("teste1")
+    restaurante_selecionadoQuery = 0
+    col1, col2, col3 = st.columns([0.1, 0.1, 0.8])
+    with col1:
+        data_inicio = st.date_input("Data inicial",format= "DD/MM/YYYY")
+    with col2:
+        data_fim = st.date_input("Data final", format= "DD/MM/YYYY")
+    with col3:
+        queryRestaurantes = """
+        SELECT
+            r.id AS id_restaurante,
+            r.nome_fantasia AS nome_fantasia
+            FROM restaurante r
+        """
+        df_restaurantes = run_query(queryRestaurantes)
+
+        # Adiciona a opção "Todos" manualmente
+        opcoes = [{"id_restaurante": 0, "nome_fantasia": "Todos"}] + df_restaurantes.to_dict("records")
+
+        # Cria o selectbox mostrando nome, mas armazenando id
+        restaurante_selecionado = st.selectbox(
+            "Selecione o Restaurante",
+            options=opcoes,
+            format_func=lambda x: x["nome_fantasia"]
+        )
+        restaurante_selecionadoQuery = restaurante_selecionado["id_restaurante"]
+
+    def MontarQueryCupom():
+        queryCupom = """
+            SELECT
+                c.porcentagem_desconto AS porcentagem_desconto,
+                COUNT(DISTINCT c.id) AS total_cupons_usados
+            FROM pedido p
+        """
+
+        queryCupomJoin = """
+            JOIN cupom c ON p.cupom_aplicado = c.id
+        """
+
+        queryRestaurantesJoin = """
+            JOIN item_compra ic ON p.id = ic.id_pedido
+            JOIN produto pd ON ic.id_produto = pd.id
+            JOIN restaurante r ON pd.id_restaurante = r.id
+        """
+
+        queryCupomWhere = """
+            WHERE p.data BETWEEN %s AND %s
+        """
+
+        queryRestaurantesWhere = """
+            AND r.id = %s
+        """
+
+        queryGroup = """
+            GROUP BY c.porcentagem_desconto
+            ORDER BY total_cupons_usados DESC;
+        """
+
+        # Monta os parâmetros
+        params = [data_inicio, data_fim]
+
+        if restaurante_selecionadoQuery != 0:
+            queryCupom = (
+                queryCupom
+                + queryCupomJoin
+                + queryRestaurantesJoin
+                + queryCupomWhere
+                + queryRestaurantesWhere
+                + queryGroup
+            )
+            params.append(restaurante_selecionadoQuery)
+        else:
+            queryCupom = queryCupom + queryCupomJoin + queryCupomWhere + queryGroup
+
+        return queryCupom, tuple(params)
+
+
+    queryCupom, params = MontarQueryCupom()
+    df1 = run_query(queryCupom, params)
+    df1["porcentagem_desconto"] = df1["porcentagem_desconto"].astype(str) + "%"
+    st.write(df1)
+    fig1 = px.bar(
+        df1,
+        x="porcentagem_desconto",
+        y="total_cupons_usados",
+        title="Uso de Cupons por Restaurante",
+        text="total_cupons_usados",
+        color_discrete_sequence=["#FFCC80"]
+        )
+
+    fig1.update_traces(
+        textposition='outside',
+        marker_color="#FFCC80",
+        width=0.4
+    )
+    fig1.update_layout(
+        xaxis_title="Porcentagem de Desconto",
+        yaxis_title="Total de Cupons Usados",
+        title_x=0.5,
+        xaxis=dict(type='category')  # força eixo categórico
+    )
+
+    st.plotly_chart(fig1, use_container_width=True)
+
+
 
 with tab2:
     st.write("teste2")
@@ -101,12 +231,3 @@ with tab3:
 
 
 
-
-
-
-
-# Teste da conexão
-#if conn:
-    #st.success("Conexão com o banco estabelecida com sucesso!")
-#else:
-    #st.error("Falha na conexão com o banco de dados.")
