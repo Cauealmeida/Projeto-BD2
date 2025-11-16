@@ -48,7 +48,7 @@ def close_connection(conn):
         st.error(f"Erro ao retornar conexão ao pool: {e}")
 
 #função para executar querys;
-@st.cache_data(ttl=3600)
+#@st.cache_data(ttl=3600) # Possivelmente causa problemas
 def run_query(query, params = None):
     conn = init_connection()
     try:
