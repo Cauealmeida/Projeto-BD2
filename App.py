@@ -247,7 +247,75 @@ with tab2:
         st.write("Nenhum dado encontrado.")
 
 with tab3:
-    st.write("teste3")
+    st.subheader("Métrica por Restaurante — Ticket Médio ou Cupons Usados")
+
+    df_rest = run_query("""
+        SELECT id AS id_restaurante, nome_fantasia
+        FROM restaurante
+        ORDER BY nome_fantasia;
+    """)
+
+    opcoes = [{"id_restaurante": 0, "nome_fantasia": "Todos"}] + df_rest.to_dict("records")
+
+    restaurante_sel = st.selectbox(
+        "Selecione o Restaurante",
+        options=opcoes,
+        format_func=lambda x: x["nome_fantasia"],
+        key="graf3_multi"
+    )
+    restaurante_id = restaurante_sel["id_restaurante"]
+
+    query_ticket = """
+        SELECT
+            r.nome_fantasia AS restaurante,
+            ROUND(
+                (
+                    SUM(
+                        ic.qtde * pr.preco * (1 - COALESCE(c.porcentagem_desconto, 0)::numeric / 100.0)
+                    )
+                    / NULLIF(COUNT(DISTINCT p.id), 0)
+                )::numeric
+            , 2) AS ticket_medio,
+            SUM(
+                ic.qtde * pr.preco * (1 - COALESCE(c.porcentagem_desconto, 0)::numeric / 100.0)
+            )::numeric AS faturamento_total,
+            COUNT(DISTINCT p.id) AS total_pedidos
+        FROM pedido p
+        JOIN item_compra ic ON p.id = ic.id_pedido
+        JOIN produto pr ON ic.id_produto = pr.id
+        LEFT JOIN cupom c ON p.cupom_aplicado = c.id
+        JOIN restaurante r ON pr.id_restaurante = r.id
+    """
+
+    params = []
+    if restaurante_id != 0:
+        query_ticket += " WHERE r.id = %s "
+        params.append(restaurante_id)
+
+    query_ticket += " GROUP BY r.nome_fantasia ORDER BY ticket_medio DESC;"
+
+    df_ticket = run_query(query_ticket, tuple(params))
+
+    if df_ticket is None or df_ticket.empty:
+        st.write("Nenhum dado encontrado para Ticket Médio.")
+    else:
+        fig = px.funnel(
+        df_ticket,
+        x="ticket_medio",
+        y="restaurante",
+        title="Ticket Médio por Restaurante (Funil)",
+        )
+
+        fig.update_layout(
+            title_x=0.5,
+            xaxis_title="Ticket Médio (R$)",
+            yaxis_title="Restaurante"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        st.write(df_ticket)
+
+
 
 
 
