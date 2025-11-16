@@ -1,4 +1,5 @@
 import base64
+import datetime
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -107,12 +108,14 @@ st.markdown("""
 tab1, tab2, tab3 = containerBody.tabs(["Grafico1", "Grafico2", "Grafico3"])
 
 with tab1:
+    hoje = datetime.date.today()
+    data_grafico = hoje - datetime.timedelta(days=360)
     restaurante_selecionadoQuery = 0
     col1, col2, col3 = st.columns([0.1, 0.1, 0.8])
     with col1:
-        data_inicio = st.date_input("Data inicial",format= "DD/MM/YYYY")
+        data_inicio = st.date_input("Data inicial",format= "DD/MM/YYYY", value= data_grafico)
     with col2:
-        data_fim = st.date_input("Data final", format= "DD/MM/YYYY")
+        data_fim = st.date_input("Data final", format= "DD/MM/YYYY", value = hoje)
     with col3:
         queryRestaurantes = """
         SELECT
@@ -137,7 +140,7 @@ with tab1:
         queryCupom = """
             SELECT
                 c.porcentagem_desconto AS porcentagem_desconto,
-                COUNT(DISTINCT c.id) AS total_cupons_usados
+                COUNT(p.id) AS total_cupons_usados
             FROM pedido p
         """
 
