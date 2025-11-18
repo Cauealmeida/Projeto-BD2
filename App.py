@@ -189,7 +189,6 @@ with tab1:
     queryCupom, params = MontarQueryCupom()
     df1 = run_query(queryCupom, params)
     df1["porcentagem_desconto"] = df1["porcentagem_desconto"].astype(str) + "%"
-    st.write(df1)
     fig1 = px.bar(
         df1,
         x="porcentagem_desconto",
@@ -212,7 +211,7 @@ with tab1:
     )
 
     st.plotly_chart(fig1, use_container_width=True)
-
+    st.write(df1)
 
 
 with tab2:
@@ -304,12 +303,14 @@ with tab3:
         x="ticket_medio",
         y="restaurante",
         title="Ticket Médio por Restaurante (Funil)",
+        color_discrete_sequence=["#FFCC80"],
         )
 
         fig.update_layout(
             title_x=0.5,
             xaxis_title="Ticket Médio (R$)",
-            yaxis_title="Restaurante"
+            yaxis_title="Restaurante",
+
         )
 
         st.plotly_chart(fig, use_container_width=True)
